@@ -108,13 +108,23 @@ namespace GabbyNotepad
                     int curpos = textBoxMain.SelectionStart;
                     if (curpos >= textBoxMain.Text.Length) curpos = textBoxMain.Text.Length - 1;
 
-                    // カーソル位置の手前にある単語を取得
-                    while (curpos >= 0)
+                    char chr = textBoxMain.Text[curpos];
+                    // もし直前が文末らしければ、文全体を読み上げ
+                    if (chr == '.' || chr == '!' || chr == '?')
                     {
-                        char chr = textBoxMain.Text[curpos];
-                        if (char.IsWhiteSpace(chr)) break;
-                        word = chr + word;
-                        curpos--;
+                        var pos = FindSentence();
+                        word = textBoxMain.Text.Substring(pos.Item1, pos.Item2);
+                    }
+                    else
+                    {
+                        // カーソル位置の手前にある単語を取得
+                        while (curpos >= 0)
+                        {
+                            chr = textBoxMain.Text[curpos];
+                            if (char.IsWhiteSpace(chr)) break;
+                            word = chr + word;
+                            curpos--;
+                        }
                     }
 
                     // カーソル前に単語があれば読み上げ
@@ -265,9 +275,21 @@ namespace GabbyNotepad
         }
 
         /// <summary>
-        /// 文の範囲を自動選択
+        /// 現在一直前の一文を探して選択
         /// </summary>
         private void SelectSentence()
+        {
+            var position = FindSentence();
+
+            // 文字列を選択
+            textBoxMain.Select(position.Item1, position.Item2);
+        }
+
+        /// <summary>
+        /// 文の範囲を自動選択
+        /// </summary>
+        /// <returns>(始点, 文字数)</returns>
+        private Tuple<int, int> FindSentence()
         {
             // 行頭を探す
             int start = textBoxMain.SelectionStart;
@@ -299,8 +321,7 @@ namespace GabbyNotepad
                 if (chr == '.' || chr == '!' || chr == '?' || chr == '\n') break;
             }
 
-            // 文字列を選択
-            textBoxMain.Select(start, end - start + 1);
+            return Tuple.Create(start, end - start + 1);
         }
 
         /// <summary>
@@ -431,6 +452,13 @@ namespace GabbyNotepad
         private void FormMain_FormClosing(object sender, FormClosingEventArgs e)
         {
             SaveSettings();
+
+            // 編集破棄確認
+            if (!ConfirmDiscardChanges())
+            {
+                e.Cancel = true;
+                return;
+            }
         }
     }
 }
