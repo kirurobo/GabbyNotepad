@@ -70,7 +70,19 @@ namespace GabbyNotepad
 
             try
             {
-                Synth.SelectVoice(MySettings.VoiceName);
+                if (string.IsNullOrEmpty(MySettings.VoiceName)) {
+                    // 指定がなければ英語を探す
+                    Synth.SelectVoiceByHints(
+                        VoiceGender.NotSet,
+                        VoiceAge.NotSet,
+                        0,
+                        new System.Globalization.CultureInfo("en-US", false)
+                        );
+                }
+                else
+                {
+                    Synth.SelectVoice(MySettings.VoiceName);
+                }
             }
             catch
             {
