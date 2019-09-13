@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29215.179
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GabbyNotepad", "GabbyNotepad\GabbyNotepad.csproj", "{A0AED923-2AF3-4E6A-9239-7E655957BE14}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A0AED923-2AF3-4E6A-9239-7E655957BE14}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A0AED923-2AF3-4E6A-9239-7E655957BE14}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A0AED923-2AF3-4E6A-9239-7E655957BE14}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A0AED923-2AF3-4E6A-9239-7E655957BE14}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {4F207111-F816-4C8E-881C-0EAC69DA9C44}
+	EndGlobalSection
+EndGlobal
