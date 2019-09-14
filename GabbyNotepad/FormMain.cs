@@ -149,11 +149,16 @@ namespace GabbyNotepad
                     int curpos = textBoxMain.SelectionStart - 1;
                     if (curpos >= textBoxMain.Text.Length) curpos = textBoxMain.Text.Length - 1;
 
-                    // もし直前が文末らしければ、文全体を読み上げ
+                    // もし直前が文末らしければ文全体を読み上げ
                     if ((curpos >= 0) && (SentenceDelimiters.Contains(textBoxMain.Text[curpos])))
                     {
-                        var pos = FindSentence();
-                        word = textBoxMain.Text.Substring(pos.Item1, pos.Item2);
+                        // 直前が改行でなければ、文全体を読み上げ
+                        char chr = textBoxMain.Text[curpos];
+                        if (chr != '\r' && chr != '\n')
+                        {
+                            var pos = FindSentence();
+                            word = textBoxMain.Text.Substring(pos.Item1, pos.Item2);
+                        }
                     }
                     else
                     {
@@ -338,19 +343,9 @@ namespace GabbyNotepad
             bool isWordFound = false;  // 発声すべき文字が見つかればtrue
 
             // 一文字ずつ戻って行頭を探す
-            StringBuilder sb = new StringBuilder();
-            int lineCount = 0;
-            char lastChr = '\0';
             for (int i = start; i >= 0; i--)
             {
-                // 改行が連続すれば空行とみなし、読み上げ対象から外す
                 char chr = textBoxMain.Text[i];
-                if ((chr == '\r' && lastChr != '\n') || chr == '\n')
-                {
-                    lineCount++;
-                    if (lineCount > 1) break;
-                }
-                lastChr = chr;
 
                 // 単語区切りにあたったかの検査
                 if (SentenceDelimiters.Contains(chr))
