@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Linq;
 using System.IO;
 using System.Windows.Forms;
 using System.Speech.Synthesis;
+using System.Text;
 
 namespace GabbyNotepad
 {
@@ -9,39 +11,36 @@ namespace GabbyNotepad
     {
         /// <summary>
         /// 設定ファイルのパス
+        /// 実行ファイルと同じディレクトリの config.json とする
         /// </summary>
-        static string SettingsPath = System.IO.Directory.GetParent(System.Reflection.Assembly.GetExecutingAssembly().Location).FullName + @"\config.json";
+        static readonly string SettingsPath = Path.Combine(
+            Directory.GetParent(System.Reflection.Assembly.GetExecutingAssembly().Location).FullName,
+            "config.json"
+            );
+
+        /// <summary>
+        /// 文末となる文字の一覧
+        /// </summary>
+        static readonly char[] SentenceDelimiters = {
+            '.', '!', '?', ':', ';', '\n', '\r', '\u0085','\u2028', '\u2029',
+            '。', '．', '：', '；'
+        };
+
+        /// <summary>
+        /// 行区切りとなる文字の一覧
+        /// </summary>
+        static readonly char[] LineDelimiters =
+        {
+            '\n', '\r', '\u0085', '\u2028', '\u2029'
+        };
 
         Settings MySettings = new Settings();
-
-        SpeechSynthesizer Synth = new SpeechSynthesizer();
+        SpeechSynthesizer MySynthesizer = new SpeechSynthesizer();
+        AboutBoxVersion MyAboutBox = new AboutBoxVersion();
 
         bool IsTextChanged = false;
-        string FilePath = "";
+        string CurrentFilePath = "";
 
-
-        void InitializeSynthesizer()
-        {
-            Synth.SetOutputToDefaultAudioDevice();
-
-            // 音声一覧の選択肢を準備
-            ToolStripItemCollection collection = voiceToolStripMenuItem.DropDownItems;
-            collection.Clear();
-
-            var voiceList = Synth.GetInstalledVoices();
-            foreach (var voice in voiceList)
-            {
-                ToolStripMenuItem item = new ToolStripMenuItem(voice.VoiceInfo.Name);
-                collection.Add(item);
-
-                if (voice.VoiceInfo.Id == Synth.Voice.Id)
-                {
-                    item.Checked = true;
-                }
-                item.Click += new EventHandler(voiceToolStripMenuItem_Click);
-            }
-
-        }
 
         public FormMain()
         {
@@ -56,23 +55,52 @@ namespace GabbyNotepad
         }
 
         /// <summary>
+        /// 音声合成エンジンの初期化
+        /// </summary>
+        void InitializeSynthesizer()
+        {
+            MySynthesizer.SetOutputToDefaultAudioDevice();
+
+            // メニューでの音声一覧の選択肢を準備
+            ToolStripItemCollection collection = voiceToolStripMenuItem.DropDownItems;
+            collection.Clear();
+            var voiceList = MySynthesizer.GetInstalledVoices();
+            foreach (var voice in voiceList)
+            {
+                ToolStripMenuItem item = new ToolStripMenuItem(voice.VoiceInfo.Name);
+                collection.Add(item);
+
+                if (voice.VoiceInfo.Id == MySynthesizer.Voice.Id)
+                {
+                    item.Checked = true;
+                }
+                item.Click += new EventHandler(voiceToolStripMenuItem_Click);
+            }
+        }
+
+        /// <summary>
         /// 設定を反映
         /// </summary>
         private void ApplySettings()
         {
+            // 逐次発声有無
             speakToolStripMenuItem.Checked = MySettings.EnableWordByWord;
+
+            // 行の折り返し有無
             textBoxMain.WordWrap = wordWrapToolStripMenuItem.Checked = MySettings.EnableWordWrap;
-            
+
+            // フォント指定
             if (MySettings.Font != null)
             {
                 textBoxMain.Font = MySettings.Font;
             }
 
+            // 音声の選択
             try
             {
                 if (string.IsNullOrEmpty(MySettings.VoiceName)) {
-                    // 指定がなければ英語を探す
-                    Synth.SelectVoiceByHints(
+                    // 音声の指定がなければ、英語のものを探して選択
+                    MySynthesizer.SelectVoiceByHints(
                         VoiceGender.NotSet,
                         VoiceAge.NotSet,
                         0,
@@ -81,7 +109,8 @@ namespace GabbyNotepad
                 }
                 else
                 {
-                    Synth.SelectVoice(MySettings.VoiceName);
+                    // 保存されていた設定の音声を選択
+                    MySynthesizer.SelectVoice(MySettings.VoiceName);
                 }
             }
             catch
@@ -97,7 +126,7 @@ namespace GabbyNotepad
             MySettings.EnableWordByWord = speakToolStripMenuItem.Checked;
             MySettings.EnableWordWrap = textBoxMain.WordWrap;
             MySettings.Font = textBoxMain.Font;
-            MySettings.VoiceName = Synth.Voice.Name;
+            MySettings.VoiceName = MySynthesizer.Voice.Name;
 
             MySettings.Save(SettingsPath);
         }
@@ -117,12 +146,11 @@ namespace GabbyNotepad
                     string word = "";
 
                     // カーソル位置取得
-                    int curpos = textBoxMain.SelectionStart;
+                    int curpos = textBoxMain.SelectionStart - 1;
                     if (curpos >= textBoxMain.Text.Length) curpos = textBoxMain.Text.Length - 1;
 
-                    char chr = textBoxMain.Text[curpos];
                     // もし直前が文末らしければ、文全体を読み上げ
-                    if (chr == '.' || chr == '!' || chr == '?')
+                    if ((curpos >= 0) && (SentenceDelimiters.Contains(textBoxMain.Text[curpos])))
                     {
                         var pos = FindSentence();
                         word = textBoxMain.Text.Substring(pos.Item1, pos.Item2);
@@ -132,7 +160,7 @@ namespace GabbyNotepad
                         // カーソル位置の手前にある単語を取得
                         while (curpos >= 0)
                         {
-                            chr = textBoxMain.Text[curpos];
+                            char chr = textBoxMain.Text[curpos];
                             if (char.IsWhiteSpace(chr)) break;
                             word = chr + word;
                             curpos--;
@@ -142,7 +170,7 @@ namespace GabbyNotepad
                     // カーソル前に単語があれば読み上げ
                     if (word.Length > 0)
                     {
-                        Synth.SpeakAsync(word);
+                        MySynthesizer.SpeakAsync(word);
                     }
                 }
             }
@@ -193,7 +221,7 @@ namespace GabbyNotepad
             textBoxMain.Text = "";
             textBoxMain.Select(0, 0);
             IsTextChanged = false;
-            FilePath = "";
+            CurrentFilePath = "";
         }
 
         /// <summary>
@@ -282,7 +310,7 @@ namespace GabbyNotepad
             // カーソル前に単語があれば読み上げ
             if (textBoxMain.SelectionLength > 0)
             {
-                Synth.SpeakAsync(textBoxMain.SelectedText);
+                MySynthesizer.SpeakAsync(textBoxMain.SelectedText);
             }
         }
 
@@ -303,34 +331,51 @@ namespace GabbyNotepad
         /// <returns>(始点, 文字数)</returns>
         private Tuple<int, int> FindSentence()
         {
-            // 行頭を探す
-            int start = textBoxMain.SelectionStart;
-            if (start >= textBoxMain.Text.Length) start = textBoxMain.Text.Length - 1;
-            bool wordFlag = false;
+            // 現在カーソル位置（または選択範囲）を取得
+            int start = textBoxMain.SelectionStart - 1;
+            if (start >= textBoxMain.TextLength) start = textBoxMain.TextLength - 1;
+
+            bool isWordFound = false;  // 発声すべき文字が見つかればtrue
+
+            // 一文字ずつ戻って行頭を探す
+            StringBuilder sb = new StringBuilder();
+            int lineCount = 0;
+            char lastChr = '\0';
             for (int i = start; i >= 0; i--)
             {
+                // 改行が連続すれば空行とみなし、読み上げ対象から外す
                 char chr = textBoxMain.Text[i];
-                if (chr == '.' || chr == '!' || chr == '?' || chr == '\n')
+                if ((chr == '\r' && lastChr != '\n') || chr == '\n')
                 {
-                    if (wordFlag) break;
+                    lineCount++;
+                    if (lineCount > 1) break;
+                }
+                lastChr = chr;
+
+                // 単語区切りにあたったかの検査
+                if (SentenceDelimiters.Contains(chr))
+                {
+                    if (isWordFound) break; // 読み上げ対象の単語が見つかっていれば終了
                     else continue;
                 }
 
                 if (char.IsWhiteSpace(chr)) continue;
 
                 start = i;
-                wordFlag = true;
+                isWordFound = true;
             }
+            if (start < 0) start = 0;
 
             // 行末を探す
-            int end = textBoxMain.SelectionStart + textBoxMain.SelectionLength;
+            int end = textBoxMain.SelectionStart - 1 + textBoxMain.SelectionLength;
+            if (end < 0) end = 0;
             if (end >= textBoxMain.TextLength) end = textBoxMain.TextLength - 1;
             for (int i = end; i < textBoxMain.TextLength; i++)
             {
                 end = i;
 
                 char chr = textBoxMain.Text[i];
-                if (chr == '.' || chr == '!' || chr == '?' || chr == '\n') break;
+                if (SentenceDelimiters.Contains(chr)) break;
             }
 
             return Tuple.Create(start, end - start + 1);
@@ -343,7 +388,7 @@ namespace GabbyNotepad
         /// <param name="e"></param>
         private void speakAllTextToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Synth.SpeakAsync(textBoxMain.Text);
+            MySynthesizer.SpeakAsync(textBoxMain.Text);
         }
 
         /// <summary>
@@ -370,7 +415,7 @@ namespace GabbyNotepad
 
                     textBoxMain.Select(0, 0);
 
-                    FilePath = fileDialog.FileName;
+                    CurrentFilePath = fileDialog.FileName;
                     IsTextChanged = false;
                 }
             }
@@ -383,13 +428,13 @@ namespace GabbyNotepad
         /// <param name="e"></param>
         private void saveToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (FilePath == "")
+            if (CurrentFilePath == "")
             {
                 saveAsToolStripMenuItem_Click(sender, e);
                 return;
             }
 
-            using (StreamWriter writer = File.CreateText(FilePath))
+            using (StreamWriter writer = File.CreateText(CurrentFilePath))
             {
                 writer.Write(textBoxMain.Text);
                 writer.Close();
@@ -417,7 +462,7 @@ namespace GabbyNotepad
                     writer.Write(textBoxMain.Text);
                     writer.Close();
 
-                    FilePath = fileDialog.FileName;
+                    CurrentFilePath = fileDialog.FileName;
                     IsTextChanged = false;
                 }
             }
@@ -430,7 +475,7 @@ namespace GabbyNotepad
         /// <param name="e"></param>
         private void stopToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Synth.SpeakAsyncCancelAll();
+            MySynthesizer.SpeakAsyncCancelAll();
         }
 
         /// <summary>
@@ -446,7 +491,7 @@ namespace GabbyNotepad
                 if (sender.Equals(item))
                 {
                     item.Checked = true;
-                    Synth.SelectVoice(item.Text);
+                    MySynthesizer.SelectVoice(item.Text);
                 }
                 else
                 {
@@ -471,6 +516,17 @@ namespace GabbyNotepad
                 e.Cancel = true;
                 return;
             }
+        }
+
+        /// <summary>
+        /// バージョン情報
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void AboutToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            MyAboutBox.Synthesizer = MySynthesizer;
+            MyAboutBox.ShowDialog(this);
         }
     }
 }
