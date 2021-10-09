@@ -1,6 +1,8 @@
 Gabby Notepad
 うるさいメモ帳（英語専用）
 
+[![動作イメージ](https://img.youtube.com/vi/NgvkDwGGT48/0.jpg)](https://www.youtube.com/watch?v=NgvkDwGGT48)
+
 
 ## これは何？
 Windows付属のメモ帳もどきです。
