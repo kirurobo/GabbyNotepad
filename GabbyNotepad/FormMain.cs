@@ -34,6 +34,14 @@ namespace GabbyNotepad
             '\n', '\r', '\u0085', '\u2028', '\u2029'
         };
 
+        /// <summary>
+        /// ホイールで変更できるフォントサイズ
+        /// </summary>
+        static readonly float[] FontSizeArray =
+        {
+            8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72, 100, 150, 200, 400
+        };
+
         Settings MySettings = new Settings();
         SpeechSynthesizer MySynthesizer = new SpeechSynthesizer();
         AboutBoxVersion MyAboutBox = new AboutBoxVersion();
@@ -41,10 +49,15 @@ namespace GabbyNotepad
         bool IsTextChanged = false;
         string CurrentFilePath = "";
 
+        DateTime lastFontResizedTime = DateTime.Now;
+
 
         public FormMain()
         {
             InitializeComponent();
+
+            // [Ctrl]+ホイールでのフォントサイズ変更
+            MouseWheel += FormMain_MouseWheel;
 
             // 設定ファイル読み込み
             MySettings.Load(SettingsPath);
@@ -497,6 +510,17 @@ namespace GabbyNotepad
         }
 
         /// <summary>
+        /// バージョン情報
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void AboutToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            MyAboutBox.Synthesizer = MySynthesizer;
+            MyAboutBox.ShowDialog(this);
+        }
+
+        /// <summary>
         /// 終了前の処理
         /// </summary>
         /// <param name="sender"></param>
@@ -514,14 +538,58 @@ namespace GabbyNotepad
         }
 
         /// <summary>
-        /// バージョン情報
+        /// [Ctrl] + ホイールでフォントサイズ変更
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void AboutToolStripMenuItem_Click(object sender, EventArgs e)
+        private void FormMain_MouseWheel(object sender, MouseEventArgs e)
         {
-            MyAboutBox.Synthesizer = MySynthesizer;
-            MyAboutBox.ShowDialog(this);
+            if ((Control.ModifierKeys & Keys.Control) == Keys.Control)
+            {
+                var now = DateTime.Now;
+                
+                // 一定間隔以内に何度も変更はできないようにする
+                if ((now - lastFontResizedTime).TotalMilliseconds < 100)    // 250[ms]には1回のみ
+                {
+                    return;
+                }
+
+                lastFontResizedTime = now;
+
+                int step = (e.Delta > 10 ? 1 : e.Delta < -10 ? -1 : 0);    // +1 か -1
+                float currentSize = textBoxMain.Font.SizeInPoints;
+
+                float newSize = currentSize;
+                if (step < 0) {
+                    // 一段階小さくする
+                    foreach (var size in FontSizeArray) {
+                        if (size >= currentSize) break;
+                        newSize = size;
+                    }
+                }
+                else if (step > 0)
+                {
+                    // 一段階大きくする
+                    foreach (var size in FontSizeArray.Reverse())
+                    {
+                        if (size <= currentSize) break;
+                        newSize = size;
+                    }
+                }
+
+                if (newSize != currentSize)
+                {
+                    var font = textBoxMain.Font;
+                    textBoxMain.Font = new System.Drawing.Font(
+                        font.FontFamily, newSize, font.Style, font.Unit, font.GdiCharSet, font.GdiVerticalFont
+                        );
+
+                    if (MySettings.Font != null)
+                    {
+                        MySettings.Font = textBoxMain.Font;
+                    }
+                }
+            }
         }
     }
 }
